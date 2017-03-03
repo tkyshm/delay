@@ -1,9 +1,9 @@
 %%%-------------------------------------------------------------------
-%% @doc qub top level supervisor.
+%% @doc delay top level supervisor.
 %% @end
 %%%-------------------------------------------------------------------
 
--module(qub_sup).
+-module(delay_sup).
 
 -behaviour(supervisor).
 

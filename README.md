@@ -1,4 +1,4 @@
-qub
+delay
 =====
 
 An OTP application

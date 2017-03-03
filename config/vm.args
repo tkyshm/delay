@@ -1,6 +1,6 @@
--sname qub
+-sname delay
 
--setcookie qub_cookie
+-setcookie delay_cookie
 
 +K true
 +A30

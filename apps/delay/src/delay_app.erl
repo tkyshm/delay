@@ -1,9 +1,9 @@
 %%%-------------------------------------------------------------------
-%% @doc qub public API
+%% @doc delay public API
 %% @end
 %%%-------------------------------------------------------------------
 
--module(qub_app).
+-module(delay_app).
 
 -behaviour(application).
 
@@ -22,7 +22,7 @@ start(_StartType, _StartArgs) ->
         {ok, Port} -> start_api_server(Port);
         _ -> start_api_server(?DEFAULT_PORT)
     end,
-    qub_sup:start_link().
+    delay_sup:start_link().
 
 profile_output() ->
     eprof:stop_profiling(),
@@ -54,7 +54,7 @@ start_api_server(Port) ->
             { "/api/dequeue", dequeue_handler, [] }
         ]}
     ]),
-    {ok, _} = cowboy:start_clear(qub_httpd, 100, [{port, Port}], #{
+    {ok, _} = cowboy:start_clear(delay_httpd, 100, [{port, Port}], #{
         env => #{dispatch => Dispatch}
     }).
 
