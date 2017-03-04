@@ -10,6 +10,8 @@
 %% Application callbacks
 -export([start/2, profile_output/0, stop/1]).
 
+-include("schema.hrl").
+
 -define(DEFAULT_PORT, 9811).
 
 %%====================================================================
@@ -18,6 +20,12 @@
 
 start(_StartType, _StartArgs) ->
     start_profile(),
+    case create_tables() of
+        {aborted, Reason} ->
+            error_logger:error_msg("failed to create tables: reason=~p", [Reason]);
+        _ ->
+            ok
+    end,
     case application:get_env(port) of
         {ok, Port} -> start_api_server(Port);
         _ -> start_api_server(?DEFAULT_PORT)
@@ -58,5 +66,16 @@ start_api_server(Port) ->
         env => #{dispatch => Dispatch}
     }).
 
-
-
+create_tables() ->
+    case mnesia:create_table(job, [{type, set}, {frag_properties,
+                                                 [{node_pool, [node()]},
+                                                  {n_fragments, 128}
+                                                 ]},
+                                   {attributes, record_info(fields, job)}]) of
+        {aborted, {already_exists, job}} ->
+            {ok, already_exists};
+        {aborted, Reason} ->
+            {aborted, Reason};
+        _ ->
+            {ok, created}
+    end.

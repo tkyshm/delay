@@ -23,8 +23,10 @@
 
 -define(SERVER, ?MODULE).
 
+-include("schema.hrl").
+
 -record(state, {
-          uid        = undefined :: binary(),
+          uid        = undefined :: binary() | undefined,
           event      = <<"{}">> :: binary(),
           delay_time = 0 :: non_neg_integer()
          }).
@@ -60,6 +62,8 @@ start_link(Uid, Event, DelayTime) ->
 %% @end
 %%--------------------------------------------------------------------
 init([Uid, Event, DelayTime]) ->
+    %% register job on mnesia
+    m:store(job, #job{uid = Uid, event = Event, delay_time = DelayTime}),
     {ok, #state{uid = Uid, event = Event, delay_time = DelayTime}}.
 
 %%--------------------------------------------------------------------

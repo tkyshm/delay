@@ -7,13 +7,14 @@
    [kernel,
     stdlib,
     ssl,
-    sasl,
+    %sasl,
     crypto,
     cowlib,
     ranch,
     cowboy,
     jiffy,
-    uuid
+    uuid,
+    mnesia
    ]},
   {env,[]},
   {modules, []},
