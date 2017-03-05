@@ -12,7 +12,7 @@
 
 -include("schema.hrl").
 
--define(DEFAULT_PORT, 9811).
+-define(DEFAULT_PORT, 9020).
 
 %%====================================================================
 %% API
@@ -67,15 +67,15 @@ start_api_server(Port) ->
     }).
 
 create_tables() ->
-    case mnesia:create_table(job, [{type, set}, {frag_properties,
-                                                 [{node_pool, [node()]},
-                                                  {n_fragments, 128}
-                                                 ]},
-                                   {attributes, record_info(fields, job)}]) of
-        {aborted, {already_exists, job}} ->
-            {ok, already_exists};
-        {aborted, Reason} ->
-            {aborted, Reason};
-        _ ->
-            {ok, created}
-    end.
+   case mnesia:create_table(job, [{type, set}, {frag_properties,
+                               [{node_pool, [node()]},
+                                {n_fragments, 128}
+                               ]},
+                              {attributes, record_info(fields, job)}]) of
+       {aborted, {already_exists, job}} ->
+           {ok, already_exists};
+       {aborted, Reason} ->
+           {aborted, Reason};
+       _ ->
+           {ok, created}
+   end.
