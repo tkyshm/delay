@@ -11,7 +11,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/3]).
+-export([start_link/4]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -41,8 +41,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Uid, Event, ExecTime) ->
-    gen_fsm:start_link(?MODULE, [Uid, Event, ExecTime], []).
+start_link(Uid, Event, Hook, ExecTime) ->
+    gen_fsm:start_link(?MODULE, [Uid, Event, Hook, ExecTime], []).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -88,14 +88,14 @@ init([Uid, Event, Hook, ExecTime]) when ExecTime =:= 0 ->
 waitting(_X, State = #job{exec_time = ExecTime, webhook = Hook}) ->
     case next_timeout(ExecTime) of
         0 ->
-            %% TODO: notification by webhook(optional).
             case Hook of
                 undefined ->
+                    %% Undefined webhook jobs would be executed by dequeue POST api
                     {next_state, ready, State};
                 Hook ->
                     %% TODO: hook response is 200, stop job. other move state ready.
                     io:format("hook trigger: ~p~n", [Hook]), % for debug
-                    {stop, finished_job, State}
+                    {stop, {shutdown, finished_job}, State}
             end;
         Timeout ->
             %% 
@@ -186,13 +186,12 @@ terminate(_Reason, _StateName, _State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+% Internal functions
+%% Considers a job as being ready if ExecTime is earlier than current unitx time
 next_timeout(ExecTime) ->
     UnixTime = erlang:system_time(seconds),
     Timeout = (ExecTime - UnixTime) * 1000, %% converts milliseconds
-    io:format("timeout: ~p~n", [Timeout]),
+    io:format("timeout: ~p~n", [Timeout/1000]),
     if
         Timeout >= ?MAX_JOB_TIMEOUT -> ?MAX_JOB_TIMEOUT;
         Timeout =< 0                -> 0;

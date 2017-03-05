@@ -38,7 +38,7 @@ start_link() ->
 %% @doc
 %% Spawn job worker
 %%
-%% @spec spawn_child(Input, DelayTime) -> supervisor:startchild_ret().
+%% @spec spawn_child(Event, Hook, ExecTime) -> supervisor:startchild_ret().
 %% @end
 -spec spawn_child(binary(), binary(), non_neg_integer()) -> supervisor:startchild_ret().
 spawn_child(Event, Hook, DelayTime) ->
