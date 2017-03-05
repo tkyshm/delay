@@ -35,6 +35,8 @@ data       | user job's parameters. (optional)
 
 ### GET /api/dequeue
 
+- Support long-polling
+
 Response:
 ```json
 [
