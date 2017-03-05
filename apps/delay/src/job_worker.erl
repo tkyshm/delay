@@ -41,8 +41,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Uid, Event, DelayTime) ->
-    gen_fsm:start_link(?MODULE, [Uid, Event, DelayTime], []).
+start_link(Uid, Event, ExecTime) ->
+    gen_fsm:start_link(?MODULE, [Uid, Event, ExecTime], []).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -61,12 +61,12 @@ start_link(Uid, Event, DelayTime) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([Uid, Event, DelayTime]) when DelayTime > 0 ->
-    State = #job{uid = Uid, pid = self(), event = Event, delay_time = DelayTime},
+init([Uid, Event, ExecTime]) when ExecTime > 0 ->
+    State = #job{uid = Uid, pid = self(), event = Event, exec_time = ExecTime},
     m:store(job, State),
     {ok, 'waitting', State};
-init([Uid, Event, DelayTime]) when DelayTime =:= 0 ->
-    State = #job{uid = Uid, pid = self(), event = Event, delay_time = DelayTime},
+init([Uid, Event, ExecTime]) when ExecTime =:= 0 ->
+    State = #job{uid = Uid, pid = self(), event = Event, exec_time = ExecTime},
     m:store(job, State),
     {ok, 'ready', State}.
 
@@ -85,8 +85,8 @@ init([Uid, Event, DelayTime]) when DelayTime =:= 0 ->
 %%                   {stop, Reason, NewState}
 %% @end
 %%--------------------------------------------------------------------
-waitting(_X, State = #job{delay_time = DelayTime}) ->
-    case next_timeout(DelayTime) of
+waitting(_X, State = #job{exec_time = ExecTime}) ->
+    case next_timeout(ExecTime) of
         0       -> {next_state, ready, State};
         Timeout -> {next_state, waitting, State, Timeout}
     end.
@@ -178,9 +178,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-next_timeout(DelayTime) ->
+next_timeout(ExecTime) ->
     UnixTime = erlang:system_time(seconds),
-    Timeout = (DelayTime - UnixTime) * 1000, %% converts milliseconds
+    Timeout = (ExecTime - UnixTime) * 1000, %% converts milliseconds
     io:format("timeout: ~p~n", [Timeout]),
     if
         Timeout >= ?MAX_JOB_TIMEOUT -> ?MAX_JOB_TIMEOUT;

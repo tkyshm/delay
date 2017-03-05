@@ -25,10 +25,10 @@ enqueue(Req, State) ->
             Body = parse_body(Req, <<>>),
             Data = jiffy:decode(Body, [return_maps]),
             Event = validate_event(Data),
-            DelayTime = validate_delay_time(Data),
+            ExecTime = validate_exec_time(Data),
             if
-                is_binary(Event) andalso is_integer(DelayTime) ->
-                    Uid = job_sup:spawn_child(Event, DelayTime),
+                is_binary(Event) andalso is_integer(ExecTime) ->
+                    Uid = job_sup:spawn_child(Event, ExecTime),
                     Resp = <<"{\"job_uid\":\"", Uid/binary, "\"}">>,
                     {stop, cowboy_req:reply(200, #{}, Resp, Req), State};
                 true ->
@@ -53,13 +53,10 @@ validate_event(Data) ->
             invalid_event
     end.
 
-validate_delay_time(Data) ->
-    case maps:find(<<"delay_time">>, Data) of
-        {ok, DelayTime} when is_integer(DelayTime) ->
-            DelayTime;
+validate_exec_time(Data) ->
+    case maps:find(<<"exec_time">>, Data) of
+        {ok, ExecTime} when is_integer(ExecTime) ->
+            ExecTime;
         _ ->
-            invalid_delay_time
+            invalid_exec_time
     end.
-
-
-
