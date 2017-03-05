@@ -12,7 +12,9 @@ Build
 TODO:
 - [x] enqueue
 - [x] docker
-- [ ] mnesia
-- [ ] job worker
+- [x] mnesia
+- [x] job worker
 - [ ] dequeue
+- [ ] test code
+- [ ] ci
 - [ ] load experience
