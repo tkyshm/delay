@@ -12,7 +12,7 @@
 
 %% API
 -export([start_link/0,
-         spawn_child/2
+         spawn_child/3
         ]).
 
 %% Supervisor callbacks
@@ -40,10 +40,10 @@ start_link() ->
 %%
 %% @spec spawn_child(Input, DelayTime) -> supervisor:startchild_ret().
 %% @end
--spec spawn_child(binary(), non_neg_integer()) -> supervisor:startchild_ret().
-spawn_child(Event, DelayTime) ->
+-spec spawn_child(binary(), binary(), non_neg_integer()) -> supervisor:startchild_ret().
+spawn_child(Event, Hook, DelayTime) ->
     Uid = list_to_binary(uuid:uuid_to_string(uuid:get_v4())),
-    {_, Pid} = supervisor:start_child(?SERVER, [Uid, Event, DelayTime]),
+    {_, Pid} = supervisor:start_child(?SERVER, [Uid, Event, Hook, DelayTime]),
     gen_fsm:send_event(Pid, {execute, Event}),
     Uid.
 

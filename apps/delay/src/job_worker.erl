@@ -61,12 +61,12 @@ start_link(Uid, Event, ExecTime) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([Uid, Event, ExecTime]) when ExecTime > 0 ->
-    State = #job{uid = Uid, pid = self(), event = Event, exec_time = ExecTime},
+init([Uid, Event, Hook, ExecTime]) when ExecTime > 0 ->
+    State = #job{uid = Uid, pid = self(), event = Event, webhook = Hook, exec_time = ExecTime},
     m:store(job, State),
     {ok, 'waitting', State};
-init([Uid, Event, ExecTime]) when ExecTime =:= 0 ->
-    State = #job{uid = Uid, pid = self(), event = Event, exec_time = ExecTime},
+init([Uid, Event, Hook, ExecTime]) when ExecTime =:= 0 ->
+    State = #job{uid = Uid, pid = self(), event = Event, webhook = Hook, exec_time = ExecTime},
     m:store(job, State),
     {ok, 'ready', State}.
 
@@ -85,10 +85,21 @@ init([Uid, Event, ExecTime]) when ExecTime =:= 0 ->
 %%                   {stop, Reason, NewState}
 %% @end
 %%--------------------------------------------------------------------
-waitting(_X, State = #job{exec_time = ExecTime}) ->
+waitting(_X, State = #job{exec_time = ExecTime, webhook = Hook}) ->
     case next_timeout(ExecTime) of
-        0       -> {next_state, ready, State};
-        Timeout -> {next_state, waitting, State, Timeout}
+        0 ->
+            %% TODO: notification by webhook(optional).
+            case Hook of
+                undefined ->
+                    {next_state, ready, State};
+                Hook ->
+                    %% TODO: hook response is 200, stop job. other move state ready.
+                    io:format("hook trigger: ~p~n", [Hook]), % for debug
+                    {stop, finished_job, State}
+            end;
+        Timeout ->
+            %% 
+            {next_state, waitting, State, Timeout}
     end.
 
 ready(_Event, State) ->

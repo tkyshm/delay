@@ -26,9 +26,10 @@ enqueue(Req, State) ->
             Data = jiffy:decode(Body, [return_maps]),
             Event = validate_event(Data),
             ExecTime = validate_exec_time(Data),
+            Hook = validate_webhook(Data),
             if
                 is_binary(Event) andalso is_integer(ExecTime) ->
-                    Uid = job_sup:spawn_child(Event, ExecTime),
+                    Uid = job_sup:spawn_child(Event, Hook, ExecTime),
                     Resp = <<"{\"job_uid\":\"", Uid/binary, "\"}">>,
                     {stop, cowboy_req:reply(200, #{}, Resp, Req), State};
                 true ->
@@ -59,4 +60,12 @@ validate_exec_time(Data) ->
             ExecTime;
         _ ->
             invalid_exec_time
+    end.
+
+validate_webhook(Data) ->
+    case maps:find(<<"webhook">>, Data) of
+        {ok, Hook} when is_binary(Hook) ->
+            Hook;
+        _ ->
+           undefined
     end.

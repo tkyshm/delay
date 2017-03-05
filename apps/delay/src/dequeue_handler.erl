@@ -15,4 +15,3 @@ content_types_provided(Req, State) ->
 dequeue(Req, State) ->
     Body = <<"{}">>,
     {Body, Req, State}.
-
