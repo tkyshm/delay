@@ -20,12 +20,15 @@
 
 start(_StartType, _StartArgs) ->
     start_profile(),
+
+    %% init mnesia
     case create_tables() of
         {aborted, Reason} ->
             error_logger:error_msg("failed to create tables: reason=~p", [Reason]);
         _ ->
             ok
     end,
+
     case application:get_env(port) of
         {ok, Port} -> start_api_server(Port);
         _ -> start_api_server(?DEFAULT_PORT)
@@ -79,3 +82,4 @@ create_tables() ->
        _ ->
            {ok, created}
    end.
+

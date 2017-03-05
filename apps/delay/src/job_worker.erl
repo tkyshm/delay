@@ -41,8 +41,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Uid, Event, Hook, ExecTime) ->
-    gen_fsm:start_link(?MODULE, [Uid, Event, Hook, ExecTime], []).
+start_link(Uid, Data, Hook, ExecTime) ->
+    gen_fsm:start_link(?MODULE, [Uid, Data, Hook, ExecTime], []).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -61,14 +61,10 @@ start_link(Uid, Event, Hook, ExecTime) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([Uid, Event, Hook, ExecTime]) when ExecTime > 0 ->
-    State = #job{uid = Uid, pid = self(), event = Event, webhook = Hook, exec_time = ExecTime},
+init([Uid, Data, Hook, ExecTime]) ->
+    State = #job{uid = Uid, pid = self(), data = Data, webhook = Hook, exec_time = ExecTime},
     m:store(job, State),
-    {ok, 'waitting', State};
-init([Uid, Event, Hook, ExecTime]) when ExecTime =:= 0 ->
-    State = #job{uid = Uid, pid = self(), event = Event, webhook = Hook, exec_time = ExecTime},
-    m:store(job, State),
-    {ok, 'ready', State}.
+    {ok, 'waitting', State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -85,28 +81,42 @@ init([Uid, Event, Hook, ExecTime]) when ExecTime =:= 0 ->
 %%                   {stop, Reason, NewState}
 %% @end
 %%--------------------------------------------------------------------
-waitting(_X, State = #job{exec_time = ExecTime, webhook = Hook}) ->
+waitting(_Event, State = #job{exec_time = ExecTime}) ->
     case next_timeout(ExecTime) of
         0 ->
-            case Hook of
-                undefined ->
-                    %% Undefined webhook jobs would be executed by dequeue POST api
-                    {next_state, ready, State};
-                Hook ->
-                    %% TODO: hook response is 200, stop job. other move state ready.
-                    io:format("hook trigger: ~p~n", [Hook]), % for debug
-                    {stop, {shutdown, finished_job}, State}
-            end;
+            NewState = State#job{status = ready},
+            m:store(job, NewState),
+            {next_state, ready, NewState, 0};
         Timeout ->
-            %% 
             {next_state, waitting, State, Timeout}
     end.
 
-ready(_Event, State) ->
-    %% TODO: post event
-    {ok, URL} = application:get_env("dest_endpoint"),
-    io:format("dest endpoint:~p~n", [URL]),
-    {next_state, 'ready', State}.
+ready(dequeue, State = #job{uid = Uid}) ->
+    io:format("delete job from mnesia: ~p~n", [Uid]),
+    case m:delete(job, Uid) of
+        ok ->
+            {stop, {shutdown, finished_job}, State};
+        Err ->
+            error_logger:error_report("error delete job record from mnesia", [{error, Err}]),
+            {next_state, ready, State}
+    end;
+ready(_Event, State = #job{uid = Uid, data = Data, webhook = Hook}) ->
+    case Hook of
+        undefined ->
+            %% Undefined webhook jobs would be executed by dequeue POST api
+            {next_state, ready, State};
+        Hook ->
+            case m:delete(job, Uid) of
+                ok  ->
+                    %% TODO: hook response is 200, stop job. other move state ready.
+                    EncodedHook = build_webhook(Hook, Data),
+                    io:format("hook trigger: ~p~n", [EncodedHook]), % for debug
+                    {stop, {shutdown, finished_job}, State};
+                Err ->
+                    error_logger:error_report("error delete job record from mnesia", [{error, Err}]),
+                    {next_state, ready, State}
+            end
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -191,9 +201,24 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 next_timeout(ExecTime) ->
     UnixTime = erlang:system_time(seconds),
     Timeout = (ExecTime - UnixTime) * 1000, %% converts milliseconds
-    io:format("timeout: ~p~n", [Timeout/1000]),
     if
         Timeout >= ?MAX_JOB_TIMEOUT -> ?MAX_JOB_TIMEOUT;
         Timeout =< 0                -> 0;
         true                        -> Timeout
     end.
+
+build_webhook(Hook, Data) ->
+    InitHook = <<Hook/binary, "?">>,
+    Url = maps:fold(fun(Key, Val, Acc) ->
+        if
+            is_integer(Val) ->
+                BinVal = integer_to_binary(Val),
+                <<Acc/binary, Key/binary, "=", BinVal/binary, "&">>;
+            is_binary(Val) ->
+                <<Acc/binary, Key/binary, "=", Val/binary, "&">>;
+            true ->
+                BinVal = jiffy:encode(Val),
+                <<Acc/binary, Key/binary, "=", BinVal/binary, "&">>
+        end
+    end, InitHook, Data),
+    erlang:binary_part(Url, {0, byte_size(Url) - 1}).

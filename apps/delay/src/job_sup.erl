@@ -40,11 +40,11 @@ start_link() ->
 %%
 %% @spec spawn_child(Event, Hook, ExecTime) -> supervisor:startchild_ret().
 %% @end
--spec spawn_child(binary(), binary(), non_neg_integer()) -> supervisor:startchild_ret().
-spawn_child(Event, Hook, DelayTime) ->
+-spec spawn_child(term(), binary(), non_neg_integer()) -> supervisor:startchild_ret().
+spawn_child(Data, Hook, DelayTime) ->
     Uid = list_to_binary(uuid:uuid_to_string(uuid:get_v4())),
-    {_, Pid} = supervisor:start_child(?SERVER, [Uid, Event, Hook, DelayTime]),
-    gen_fsm:send_event(Pid, {execute, Event}),
+    {_, Pid} = supervisor:start_child(?SERVER, [Uid, Data, Hook, DelayTime]),
+    gen_fsm:send_event(Pid, dummy),
     Uid.
 
 %%%===================================================================
