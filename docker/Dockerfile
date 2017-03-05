@@ -53,6 +53,7 @@ ADD init_docker.sh init_docker.sh
 
 ARG CC=gcc
 ARG REPO=delay
+ARG TAG=v0.1.0-pre0
 RUN set -xe\
     && mkdir -p app\
     && cd app\
