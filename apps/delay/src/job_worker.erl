@@ -4,124 +4,163 @@
 %%% @doc
 %%%
 %%% @end
-%%% Created : 2017-03-03 23:43:43.884744
+%%% Created : 2017-03-05 18:33:48.553013
 %%%-------------------------------------------------------------------
 -module(job_worker).
 
--behaviour(gen_server).
+-behaviour(gen_fsm).
 
 %% API
 -export([start_link/3]).
 
-%% gen_server callbacks
+%% gen_fsm callbacks
 -export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3]).
+         waitting/2,
+         ready/2,
+         handle_event/3,
+         handle_sync_event/4,
+         handle_info/3,
+         terminate/3,
+         code_change/4]).
 
 -define(SERVER, ?MODULE).
+-define(MAX_JOB_TIMEOUT, 1000*600). %% 10min interval timeout
 
 -include("schema.hrl").
-
--record(state, {
-          uid        = undefined :: binary() | undefined,
-          event      = <<"{}">> :: binary(),
-          delay_time = 0 :: non_neg_integer()
-         }).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts the server
+%% Creates a gen_fsm process which calls Module:init/1 to
+%% initialize. To ensure a synchronized start-up procedure, this
+%% function does not return until Module:init/1 has returned.
 %%
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
 start_link(Uid, Event, DelayTime) ->
-    gen_server:start_link(?MODULE, [Uid, Event, DelayTime], []).
+    gen_fsm:start_link(?MODULE, [Uid, Event, DelayTime], []).
 
 %%%===================================================================
-%%% gen_server callbacks
+%%% gen_fsm callbacks
 %%%===================================================================
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Initializes the server
+%% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
+%% gen_fsm:start_link/[3,4], this function is called by the new
+%% process to initialize.
 %%
-%% @spec init(Args) -> {ok, State} |
-%%                     {ok, State, Timeout} |
+%% @spec init(Args) -> {ok, StateName, State} |
+%%                     {ok, StateName, State, Timeout} |
 %%                     ignore |
-%%                     {stop, Reason}
+%%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([Uid, Event, DelayTime]) ->
-    %% register job on mnesia
-    m:store(job, #job{uid = Uid, event = Event, delay_time = DelayTime}),
-    {ok, #state{uid = Uid, event = Event, delay_time = DelayTime}}.
+init([Uid, Event, DelayTime]) when DelayTime > 0 ->
+    State = #job{uid = Uid, pid = self(), event = Event, delay_time = DelayTime},
+    m:store(job, State),
+    {ok, 'waitting', State};
+init([Uid, Event, DelayTime]) when DelayTime =:= 0 ->
+    State = #job{uid = Uid, pid = self(), event = Event, delay_time = DelayTime},
+    m:store(job, State),
+    {ok, 'ready', State}.
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Handling call messages
+%% There should be one instance of this function for each possible
+%% state name. Whenever a gen_fsm receives an event sent using
+%% gen_fsm:send_event/2, the instance of this function with the same
+%% name as the current state name StateName is called to handle
+%% the event. It is also called if a timeout occurs.
 %%
-%% @spec handle_call(Request, From, State) ->
-%%                                   {reply, Reply, State} |
-%%                                   {reply, Reply, State, Timeout} |
-%%                                   {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, Reply, State} |
-%%                                   {stop, Reason, State}
+%% @spec state_name(Event, State) ->
+%%                   {next_state, NextStateName, NextState} |
+%%                   {next_state, NextStateName, NextState, Timeout} |
+%%                   {stop, Reason, NewState}
 %% @end
 %%--------------------------------------------------------------------
-handle_call(_Request, _From, State) ->
+waitting(_X, State = #job{delay_time = DelayTime}) ->
+    case next_timeout(DelayTime) of
+        0       -> {next_state, ready, State};
+        Timeout -> {next_state, waitting, State, Timeout}
+    end.
+
+ready(_Event, State) ->
+    %% TODO: post event
+    {ok, URL} = application:get_env("dest_endpoint"),
+    io:format("dest endpoint:~p~n", [URL]),
+    {next_state, 'ready', State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Whenever a gen_fsm receives an event sent using
+%% gen_fsm:send_all_state_event/2, this function is called to handle
+%% the event.
+%%
+%% @spec handle_event(Event, StateName, State) ->
+%%                   {next_state, NextStateName, NextState} |
+%%                   {next_state, NextStateName, NextState, Timeout} |
+%%                   {stop, Reason, NewState}
+%% @end
+%%--------------------------------------------------------------------
+handle_event(_Event, StateName, State) ->
+    {next_state, StateName, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Whenever a gen_fsm receives an event sent using
+%% gen_fsm:sync_send_all_state_event/[2,3], this function is called
+%% to handle the event.
+%%
+%% @spec handle_sync_event(Event, From, StateName, State) ->
+%%                   {next_state, NextStateName, NextState} |
+%%                   {next_state, NextStateName, NextState, Timeout} |
+%%                   {reply, Reply, NextStateName, NextState} |
+%%                   {reply, Reply, NextStateName, NextState, Timeout} |
+%%                   {stop, Reason, NewState} |
+%%                   {stop, Reason, Reply, NewState}
+%% @end
+%%--------------------------------------------------------------------
+handle_sync_event(_Event, _From, StateName, State) ->
     Reply = ok,
-    {reply, Reply, State}.
+    {reply, Reply, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Handling cast messages
+%% This function is called by a gen_fsm when it receives any
+%% message other than a synchronous or asynchronous event
+%% (or a system message).
 %%
-%% @spec handle_cast(Msg, State) -> {noreply, State} |
-%%                                  {noreply, State, Timeout} |
-%%                                  {stop, Reason, State}
+%% @spec handle_info(Info,StateName,State)->
+%%                   {next_state, NextStateName, NextState} |
+%%                   {next_state, NextStateName, NextState, Timeout} |
+%%                   {stop, Reason, NewState}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-    {noreply, State}.
+handle_info(_Info, StateName, State) ->
+    {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Handling all non call/cast messages
-%%
-%% @spec handle_info(Info, State) -> {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
-handle_info(_Info, State) ->
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_server when it is about to
+%% This function is called by a gen_fsm when it is about to
 %% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_server terminates
-%% with Reason. The return value is ignored.
+%% necessary cleaning up. When it returns, the gen_fsm terminates with
+%% Reason. The return value is ignored.
 %%
-%% @spec terminate(Reason, State) -> void()
+%% @spec terminate(Reason, StateName, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, _StateName, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
@@ -129,16 +168,22 @@ terminate(_Reason, _State) ->
 %% @doc
 %% Convert process state when code is changed
 %%
-%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
+%% @spec code_change(OldVsn, StateName, State, Extra) ->
+%%                   {ok, StateName, NewState}
 %% @end
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+code_change(_OldVsn, StateName, State, _Extra) ->
+    {ok, StateName, State}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-
-
-
+next_timeout(DelayTime) ->
+    UnixTime = erlang:system_time(seconds),
+    Timeout = (DelayTime - UnixTime) * 1000, %% converts milliseconds
+    io:format("timeout: ~p~n", [Timeout]),
+    if
+        Timeout >= ?MAX_JOB_TIMEOUT -> ?MAX_JOB_TIMEOUT;
+        Timeout =< 0                -> 0;
+        true                        -> Timeout
+    end.

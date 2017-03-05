@@ -43,7 +43,8 @@ start_link() ->
 -spec spawn_child(binary(), non_neg_integer()) -> supervisor:startchild_ret().
 spawn_child(Event, DelayTime) ->
     Uid = list_to_binary(uuid:uuid_to_string(uuid:get_v4())),
-    {_, _Pid} = supervisor:start_child(?SERVER, [Uid, Event, DelayTime]),
+    {_, Pid} = supervisor:start_child(?SERVER, [Uid, Event, DelayTime]),
+    gen_fsm:send_event(Pid, {execute, Event}),
     Uid.
 
 %%%===================================================================

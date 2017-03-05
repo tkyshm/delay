@@ -49,13 +49,11 @@ RUN set -xe \
     && install -m 0755 rebar3 /usr/local/bin \
     && rm -rf /rebar3
 
-ADD install.sh install.sh
 ADD init_docker.sh init_docker.sh
 
 ARG CC=gcc
 ARG REPO=delay
 RUN set -xe\
-    # install application
     && mkdir -p app\
     && cd app\
     && git clone https://github.com/tkyshm/delay\

@@ -11,6 +11,7 @@ Build
 ----
 TODO:
 - [x] enqueue
+- [x] docker
 - [ ] mnesia
 - [ ] job worker
 - [ ] dequeue

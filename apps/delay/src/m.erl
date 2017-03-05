@@ -4,13 +4,11 @@
 
 -spec store(atom(), #{}) -> ok.
 store(Table, Data) ->
-    F = fun() -> mnesia:write(Table, Data, sticky_write) end,
-    mnesia:activity(async_dirty, F, [], mnesia_frag).
+    mnesia:activity(async_dirty, fun mnesia:write/3, [Table, Data, sticky_write], mnesia_frag).
 
 -spec lookup(Table::atom(), Key::term()) -> {ok, term()} | {not_found, term()}.
 lookup(Table, Key) ->
-    F = fun() -> mnesia:read(Table, Key, read) end,
-    try mnesia:activity(async_dirty, F, [], mnesia_frag) of
+    try mnesia:activity(async_dirty, fun mnesia:read/3, [Table, Key, read], mnesia_frag) of
         Result -> {ok, Result}
     catch
         _TypeOfError:Err ->
