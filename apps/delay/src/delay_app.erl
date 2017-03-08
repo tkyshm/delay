@@ -21,10 +21,17 @@
 start(_StartType, _StartArgs) ->
     start_profile(),
 
-    %% init mnesia
-    case create_tables() of
-        {aborted, Reason} ->
-            error_logger:error_msg("failed to create tables: reason=~p", [Reason]);
+    %% init mnesia (TODO: escripts)
+    case create_table(job, 128) of
+        {aborted, Reason1} ->
+            error_logger:error_msg("failed to create tables: reason=~p", [Reason1]);
+        _ ->
+            ok
+    end,
+
+    case create_table(reciever, 128) of
+        {aborted, Reason2} ->
+            error_logger:error_msg("failed to create tables: reason=~p", [Reason2]);
         _ ->
             ok
     end,
@@ -69,10 +76,12 @@ start_api_server(Port) ->
         env => #{dispatch => Dispatch}
     }).
 
-create_tables() ->
-   case mnesia:create_table(job, [{type, set}, {frag_properties,
+%% TODO: for replications
+-spec create_table(atom(), non_neg_integer()) -> {aborted, Reason::term()} | {ok, already_exists} | {ok, created}.
+create_table(Table, Frag) ->
+   case mnesia:create_table(Table, [{type, set}, {frag_properties,
                                [{node_pool, [node()]},
-                                {n_fragments, 128}
+                                {n_fragments, Frag}
                                ]},
                               {attributes, record_info(fields, job)}]) of
        {aborted, {already_exists, job}} ->
@@ -82,4 +91,3 @@ create_tables() ->
        _ ->
            {ok, created}
    end.
-

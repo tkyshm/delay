@@ -7,29 +7,32 @@
 
 -include("schema.hrl").
 
--define(POLLING_PERIOD, 1000). % 1000 millseconds
 -define(DEFAULT_TIMEOUT, 10). % 10 second
 
 init(Req, State) ->
-    %%Timeout = cowboy_req:header(<<"x-delay-timeout">>, Req, ?DEFAULT_TIMEOUT) * 1000,
-    io:format("test echo"),
+    Timeout = cowboy_req:header(<<"x-delay-timeout">>, Req, ?DEFAULT_TIMEOUT) * 1000,
+    Ua = cowboy_req:header(<<"user-agent">>, Req, <<"">>),
+    {Ip, Port} = cowboy_req:peer(Req),
+    m:store(reciever, #reciever{pid = self(), node = node(), ip = Ip, port = Port, ua = Ua}),
+    erlang:send_after(Timeout, self(), timeout),
     {cowboy_loop, Req, State, hibernate}.
 
 info(timeout, Req, State) ->
     {stop, Req, State};
-info(polling, Req, State) ->
-    io:format("now: ~p~n",[erlang:system_time(seconds)]),
+info(dequeue, Req, State) ->
     case dequeue() of
         {ok, not_found} ->
-            {ok, Req, State};
+            {ok, Req, State, hibernate};
         {ok, Resp} ->
-            {ok, cowboy_req:reply(200, #{}, Resp, Req), State};
+            {ok, cowboy_req:reply(200, #{}, Resp, Req), State, hibernate};
         {error, ErrResp} ->
-            {ok, cowboy_req:reply(500, #{}, ErrResp, Req), State}
+            {ok, cowboy_req:reply(500, #{}, ErrResp, Req), State, hibernate}
     end;
-info(Msg, Req, State) ->
-    io:format("msg:~p~n", [Msg]),
+info(_Msg, Req, State) ->
     {ok, Req, State, hibernate}.
+
+terminate(_Reason, _Req, _State) ->
+    ok.
 
 dequeue() ->
     case m:find_all_ready_jobs() of

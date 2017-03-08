@@ -6,6 +6,7 @@
 -export([store/2,
          lookup/2,
          delete/2,
+         find_all_recievers/0,
          find_all_ready_jobs/0
         ]).
 
@@ -27,6 +28,16 @@ lookup(Table, Key) ->
             end
     end.
 
+-spec find_all_recievers() -> {aborted, Reason :: term()} | {atomic, Result :: term()}.
+find_all_recievers() ->
+    Q = qlc:q([R || R <- mnesia:table(reciever)]),
+    F = fun() -> qlc:eval(Q) end,
+    try mnesia:activity(transaction, F, [], mnesia_frag) of
+        Result -> {ok, Result}
+    catch
+        _TypeOfError:Err -> catch_exception(Err)
+    end.
+
 -spec delete(Table :: atom(), Key :: binary()) -> ok | transaction_abort.
 delete(Table, Key) ->
     mnesia:activity(async_dirty, fun mnesia:delete/1, [{Table, Key}], mnesia_frag).
@@ -38,11 +49,14 @@ find_all_ready_jobs() ->
     try mnesia:activity(transaction, F, [], mnesia_frag) of
         Result -> {ok, Result}
     catch
-        _TypeOfError:Err ->
-            case Err of
-                {aborted, {no_exists, _}} ->
-                    {error, not_found};
-                _ ->
-                    {error, Err}
-            end
+        _TypeOfError:Err -> catch_exception(Err)
+    end.
+
+-spec catch_exception(Err::term()) -> {aborted, Reason :: term()} | {atomic, Result :: term()}.
+catch_exception(Err) ->
+    case Err of
+        {aborted, {no_exists, _}} ->
+            {error, not_found};
+        _ ->
+            {error, Err}
     end.
