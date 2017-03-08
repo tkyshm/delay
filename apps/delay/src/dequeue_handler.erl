@@ -2,26 +2,39 @@
 
 -export([init/2]).
 -export([info/3]).
--export([dequeue/2]).
+-export([dequeue/0]).
+-export([terminate/3]).
 
 -include("schema.hrl").
 
--define(DEFAULT_COUNT, 50).
--define(SERVER_INTERVAL, 200).
+-define(POLLING_PERIOD, 1000). % 1000 millseconds
+-define(DEFAULT_TIMEOUT, 10). % 10 second
 
-init(Req0, _) ->
-    Req1 = cowboy_req:stream_reply(200, #{<<"content-type">> => <<"application/json">>}, Req0),
-    erlang:send_after(200, self(), timeout),
-    {cowboy_loop, Req1, ?DEFAULT_COUNT}. %% TODO: enable to set count
+init(Req, State) ->
+    %%Timeout = cowboy_req:header(<<"x-delay-timeout">>, Req, ?DEFAULT_TIMEOUT) * 1000,
+    io:format("test echo"),
+    {cowboy_loop, Req, State, hibernate}.
 
-info(timeout, Req, 0) ->
-    {stop, Req, 0};
-info(timeout, Req, Count) ->
-    erlang:send_after(?SERVER_INTERVAL, self(), timeout),
-    dequeue(Req, Count).
+info(timeout, Req, State) ->
+    {stop, Req, State};
+info(polling, Req, State) ->
+    io:format("now: ~p~n",[erlang:system_time(seconds)]),
+    case dequeue() of
+        {ok, not_found} ->
+            {ok, Req, State};
+        {ok, Resp} ->
+            {ok, cowboy_req:reply(200, #{}, Resp, Req), State};
+        {error, ErrResp} ->
+            {ok, cowboy_req:reply(500, #{}, ErrResp, Req), State}
+    end;
+info(Msg, Req, State) ->
+    io:format("msg:~p~n", [Msg]),
+    {ok, Req, State, hibernate}.
 
-dequeue(Req, Count) ->
+dequeue() ->
     case m:find_all_ready_jobs() of
+        {ok, []} ->
+            {ok, not_found};
         {ok, Jobs} ->
             lists:foreach(fun(J) ->
                 gen_fsm:send_event(J#job.pid, dequeue)
@@ -30,10 +43,8 @@ dequeue(Req, Count) ->
                 #{<<"data">> => J#job.data, <<"uid">> => J#job.uid}
             end, Jobs),
             Resp = jiffy:encode(JobJson),
-            cowboy_req:stream_body(Resp, nofin, Req),
-            {ok, Req, Count - 1};
+            {ok, Resp};
         _ ->
             Resp = <<"{\"error\":\"Internal Server Error\"}">>,
-            cowboy_req:stream_body(Resp, nofin, Req),
-            {ok, cowboy_req:reply(500, #{}, Resp, Req), Count}
+            {error, Resp}
     end.

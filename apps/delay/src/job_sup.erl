@@ -65,22 +65,21 @@ spawn_child(Data, Hook, DelayTime) ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    RestartStrategy = simple_one_for_one,
-    MaxRestarts = 1000,
-    MaxSecondsBetweenRestarts = 3600,
+    SupFlags = #{intensity => 1000,
+                 period => 3600,
+                 strategy => simple_one_for_one
+                },
 
-    SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
+    JobSpec = #{id => 'job_worker',
+                start => {'job_worker', start_link, []},
+                restart => temporary,
+                shutdown => 5000,
+                type => worker,
+                modules => ['job_worker']
+               },
 
-    Restart = permanent,
-    Shutdown = 2000,
-    Type = worker,
-
-    AChild = {'job_worker', {'job_worker', start_link, []},
-              Restart, Shutdown, Type, ['job_worker']},
-
-    {ok, {SupFlags, [AChild]}}.
+    {ok, {SupFlags, [JobSpec]}}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
