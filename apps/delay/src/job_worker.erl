@@ -101,11 +101,15 @@ ready(dequeue, State = #job{uid = Uid}) ->
             {next_state, ready, State}
     end;
 ready(_Event, State = #job{uid = Uid, data = Data, webhook = Hook}) ->
-    [R|_] = m:find_all_recievers(),
     case Hook of
         undefined ->
+            case m:find_all_recievers() of
+                [] ->
+                    ok;
+                [R|_] ->
+                    rpc:async_call(R#reciever.node, 'delay', send_reciever, [R#reciever.pid])
+            end,
             %% Undefined webhook jobs would be executed by dequeue POST api
-            rpc:async_call(R#reciever.node, 'delay', send_reciever, [R#reciever.pid]),
             {next_state, ready, State};
         Hook ->
             case m:delete(job, Uid) of
