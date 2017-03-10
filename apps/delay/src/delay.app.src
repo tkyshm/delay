@@ -8,7 +8,6 @@
     stdlib,
     ssl,
     %sasl,
-    crypto,
     cowlib,
     ranch,
     cowboy,

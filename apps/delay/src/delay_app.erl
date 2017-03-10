@@ -22,14 +22,14 @@ start(_StartType, _StartArgs) ->
     start_profile(),
 
     %% init mnesia (TODO: escripts)
-    case create_table(job, 128) of
+    case create_job_table(128) of
         {aborted, Reason1} ->
             error_logger:error_msg("failed to create tables: reason=~p", [Reason1]);
         _ ->
             ok
     end,
 
-    case create_table(reciever, 128) of
+    case create_acceptor_table(128) of
         {aborted, Reason2} ->
             error_logger:error_msg("failed to create tables: reason=~p", [Reason2]);
         _ ->
@@ -77,17 +77,32 @@ start_api_server(Port) ->
     }).
 
 %% TODO: for replications
--spec create_table(atom(), non_neg_integer()) -> {aborted, Reason::term()} | {ok, already_exists} | {ok, created}.
-create_table(Table, Frag) ->
-   case mnesia:create_table(Table, [{type, set}, {frag_properties,
-                               [{node_pool, [node()]},
-                                {n_fragments, Frag}
-                               ]},
-                              {attributes, record_info(fields, job)}]) of
-       {aborted, {already_exists, job}} ->
-           {ok, already_exists};
-       {aborted, Reason} ->
-           {aborted, Reason};
-       _ ->
-           {ok, created}
-   end.
+-spec create_job_table(non_neg_integer()) -> {aborted, Reason::term()} | {ok, already_exists} | {ok, created}.
+create_job_table(Frag) ->
+    case mnesia:create_table(job, [{type, set}, {frag_properties,
+                                                   [{node_pool, [node()]},
+                                                    {n_fragments, Frag}
+                                                   ]},
+                                     {attributes, record_info(fields, job)}]) of
+        {aborted, {already_exists, job}} ->
+            {ok, already_exists};
+        {aborted, Reason} ->
+            {aborted, Reason};
+        _ ->
+            {ok, created}
+    end.
+
+-spec create_acceptor_table(non_neg_integer()) -> {aborted, Reason::term()} | {ok, already_exists} | {ok, created}.
+create_acceptor_table(Frag) ->
+    case mnesia:create_table(acceptor, [{type, set}, {frag_properties,
+                                                   [{node_pool, [node()]},
+                                                    {n_fragments, Frag}
+                                                   ]},
+                                     {attributes, record_info(fields, acceptor)}]) of
+        {aborted, {already_exists, acceptor}} ->
+            {ok, already_exists};
+        {aborted, Reason} ->
+            {aborted, Reason};
+        _ ->
+            {ok, created}
+    end.

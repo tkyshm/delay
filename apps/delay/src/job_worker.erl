@@ -27,6 +27,7 @@
 -define(MAX_JOB_TIMEOUT, 1000*600). %% 10min interval timeout
 
 -include("schema.hrl").
+-include("delay.hrl").
 
 %%%===================================================================
 %%% API
@@ -92,7 +93,6 @@ waitting(_Event, State = #job{exec_time = ExecTime}) ->
     end.
 
 ready(dequeue, State = #job{uid = Uid}) ->
-    io:format("delete job from mnesia: ~p~n", [Uid]),
     case m:delete(job, Uid) of
         ok ->
             {stop, {shutdown, finished_job}, State};
@@ -103,11 +103,16 @@ ready(dequeue, State = #job{uid = Uid}) ->
 ready(_Event, State = #job{uid = Uid, data = Data, webhook = Hook}) ->
     case Hook of
         undefined ->
-            case m:find_all_recievers() of
-                [] ->
+            case m:find_all_acceptors() of
+                {ok, []} ->
                     ok;
-                [R|_] ->
-                    rpc:async_call(R#reciever.node, 'delay', send_reciever, [R#reciever.pid])
+                {ok, As = [HA|_]} ->
+                    Now = erlang:system_time(seconds),
+                    DelKeys = [A#acceptor.pid || A <- As, Now - A#acceptor.created_at > ?MAX_POLLING_TIMEOUT ],
+                    m:multi_delete(acceptor, DelKeys),
+                    rpc:async_call(HA#acceptor.node, 'delay', send_acceptor, [HA#acceptor.pid]);
+                {aborted, Err} ->
+                    error_logger:error_report('find_all_acceptors',[{error, Err}])
             end,
             %% Undefined webhook jobs would be executed by dequeue POST api
             {next_state, ready, State};
@@ -202,7 +207,7 @@ terminate(_Reason, _StateName, _State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
-% Internal functions
+                                                % Internal functions
 %% Considers a job as being ready if ExecTime is earlier than current unitx time
 next_timeout(ExecTime) ->
     UnixTime = erlang:system_time(seconds),
@@ -215,16 +220,17 @@ next_timeout(ExecTime) ->
 
 build_webhook(Hook, Data) ->
     InitHook = <<Hook/binary, "?">>,
-    Url = maps:fold(fun(Key, Val, Acc) ->
-        if
-            is_integer(Val) ->
-                BinVal = integer_to_binary(Val),
-                <<Acc/binary, Key/binary, "=", BinVal/binary, "&">>;
-            is_binary(Val) ->
-                <<Acc/binary, Key/binary, "=", Val/binary, "&">>;
-            true ->
-                BinVal = jiffy:encode(Val),
-                <<Acc/binary, Key/binary, "=", BinVal/binary, "&">>
-        end
-    end, InitHook, Data),
+    F = fun(Key, Val, Acc) ->
+                if
+                    is_integer(Val) ->
+                        BinVal = integer_to_binary(Val),
+                        <<Acc/binary, Key/binary, "=", BinVal/binary, "&">>;
+                    is_binary(Val) ->
+                        <<Acc/binary, Key/binary, "=", Val/binary, "&">>;
+                    true ->
+                        BinVal = jiffy:encode(Val),
+                        <<Acc/binary, Key/binary, "=", BinVal/binary, "&">>
+                end
+        end,
+    Url = maps:fold(F, InitHook, Data),
     erlang:binary_part(Url, {0, byte_size(Url) - 1}).

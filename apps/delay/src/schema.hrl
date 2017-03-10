@@ -7,10 +7,11 @@
           status = waitting   :: waitting | ready
          }).
 
--record(reciever, {
+-record(acceptor, {
           pid  = undefined :: pid() | undefined,
           node = undefined :: node(),
           port = 0         :: inet:port_number(),
           ip   = undefined :: inet:ip_address() | undefined,
-          ua   = <<"">>    :: binary()
+          ua   = <<"">>    :: binary(),
+          created_at = 0   :: non_neg_integer() %% unix timestamp
          }).

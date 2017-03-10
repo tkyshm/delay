@@ -6,15 +6,24 @@
 -export([terminate/3]).
 
 -include("schema.hrl").
-
--define(DEFAULT_TIMEOUT, 10). % 10 second
+-include("delay.hrl").
 
 init(Req, State) ->
-    Timeout = cowboy_req:header(<<"x-delay-timeout">>, Req, ?DEFAULT_TIMEOUT) * 1000,
+    Timeout = cowboy_req:header(<<"x-delay-timeout">>, Req, ?DEFAULT_POLLING_TIMEOUT) * 1000,
+    MaxTimeout = ?MAX_POLLING_TIMEOUT * 1000,
     Ua = cowboy_req:header(<<"user-agent">>, Req, <<"">>),
     {Ip, Port} = cowboy_req:peer(Req),
-    m:store(reciever, #reciever{pid = self(), node = node(), ip = Ip, port = Port, ua = Ua}),
-    erlang:send_after(Timeout, self(), timeout),
+    m:store(acceptor, #acceptor{pid = self(),
+                                node = node(),
+                                ip = Ip,
+                                port = Port,
+                                ua = Ua,
+                                created_at = erlang:system_time(seconds)
+                               }),
+    if
+        Timeout < MaxTimeout -> erlang:send_after(Timeout, self(), timeout);
+        true                 -> erlang:send_after(MaxTimeout, self(), timeout)
+    end,
     {cowboy_loop, Req, State, hibernate}.
 
 info(timeout, Req, State) ->
@@ -22,16 +31,17 @@ info(timeout, Req, State) ->
 info(dequeue, Req, State) ->
     case dequeue() of
         {ok, not_found} ->
-            {ok, Req, State, hibernate};
+            {stop, Req, State};
         {ok, Resp} ->
-            {ok, cowboy_req:reply(200, #{}, Resp, Req), State, hibernate};
+            {stop, cowboy_req:reply(200, #{}, Resp, Req), State};
         {error, ErrResp} ->
-            {ok, cowboy_req:reply(500, #{}, ErrResp, Req), State, hibernate}
+            {stop, cowboy_req:reply(500, #{}, ErrResp, Req), State}
     end;
 info(_Msg, Req, State) ->
     {ok, Req, State, hibernate}.
 
 terminate(_Reason, _Req, _State) ->
+    m:delete(acceptor, self()),
     ok.
 
 dequeue() ->
