@@ -1,0 +1,2 @@
+-define(DEFAULT_POLLING_TIMEOUT, 10). % 10 second
+-define(MAX_POLLING_TIMEOUT, 60). % max timeout 60s
