@@ -119,9 +119,7 @@ ready(_Event, State = #job{uid = Uid, data = Data, webhook = Hook}) ->
         Hook ->
             case m:delete(job, Uid) of
                 ok  ->
-                    %% TODO: hook response is 200, stop job. other move state ready.
-                    EncodedHook = build_webhook(Hook, Data),
-                    io:format("hook trigger: ~p~n", [EncodedHook]), % for debug
+                    post_webhook(Hook, Data),
                     {stop, {shutdown, finished_job}, State};
                 Err ->
                     error_logger:error_report("error delete job record from mnesia", [{error, Err}]),
@@ -218,19 +216,41 @@ next_timeout(ExecTime) ->
         true                        -> Timeout
     end.
 
-build_webhook(Hook, Data) ->
-    InitHook = <<Hook/binary, "?">>,
-    F = fun(Key, Val, Acc) ->
-                if
-                    is_integer(Val) ->
-                        BinVal = integer_to_binary(Val),
-                        <<Acc/binary, Key/binary, "=", BinVal/binary, "&">>;
-                    is_binary(Val) ->
-                        <<Acc/binary, Key/binary, "=", Val/binary, "&">>;
-                    true ->
-                        BinVal = jiffy:encode(Val),
-                        <<Acc/binary, Key/binary, "=", BinVal/binary, "&">>
-                end
-        end,
-    Url = maps:fold(F, InitHook, Data),
-    erlang:binary_part(Url, {0, byte_size(Url) - 1}).
+-spec post_webhook(Url :: binary(), Data :: #{}) -> {ok, integer()} | {error, term()}.
+post_webhook(Url, Data) ->
+    Payload = encode_to_binary(Data),
+    case hackney:request(post, Url, [], Payload, [{pool, webhook}]) of
+        {ok, Status, _, ClientRef} when Status >= 400-> % error
+            io:format("status:~p", [Status]),
+            Body = parse_body(ClientRef),
+            error_logger:error_report("error post request to webhook",[{code, Status}, {body, Body}]),
+            {error, Status};
+        {ok, Status, _, _} ->
+            {ok, Status};
+        {error, Reason} ->
+            error_logger:error_report("failed to connect webhook endpoint",[{webhook, Url}]),
+            {error, Reason}
+    end.
+
+-spec parse_body(ClientRef :: hackney:client_ref()) -> binary() | atom() | {closed, binary()}.
+parse_body(ClientRef) ->
+    case hackney:body(ClientRef) of
+        {ok, Body} ->
+            Body;
+        {error, Reason} ->
+            error_logger:error_report("error parse webhook response body",[{error, Reason}]),
+            Reason;
+        Reason ->
+            error_logger:error_report("error parse webhook response body",[{error, Reason}]),
+            Reason
+    end.
+
+-spec encode_to_binary(Data :: #{}) -> binary().
+encode_to_binary(Data) ->
+    try jiffy:encoded(Data) of
+        Bin -> Bin
+    catch
+        _TypeError:_Err ->
+            error_logger:error_report("failed to encode post data",[{data, Data}]),
+            ?FAILED_ENCODED_BINARY
+    end.

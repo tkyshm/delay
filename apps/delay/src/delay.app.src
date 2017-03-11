@@ -13,7 +13,8 @@
     cowboy,
     jiffy,
     uuid,
-    mnesia
+    mnesia,
+    hackney
    ]},
   {env,[]},
   {modules, []},

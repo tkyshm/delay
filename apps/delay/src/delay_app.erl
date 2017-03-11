@@ -10,6 +10,7 @@
 %% Application callbacks
 -export([start/2, profile_output/0, stop/1]).
 
+-include("delay.hrl").
 -include("schema.hrl").
 
 -define(DEFAULT_PORT, 9020).
@@ -35,6 +36,10 @@ start(_StartType, _StartArgs) ->
         _ ->
             ok
     end,
+
+    %% initialize hackney pool for webhook
+    Options = [{timeout, ?WEBHOOK_TIMEOUT}, {max_connections, ?WEBHOOK_MAX_CONNECTIONS}],
+    ok = hackney_pool:start_pool(webhook, Options),
 
     case application:get_env(port) of
         {ok, Port} -> start_api_server(Port);
