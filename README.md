@@ -63,7 +63,9 @@ Response:
 - [x] mnesia
 - [x] job worker
 - [x] dequeue
-- [ ] webhook
+- [x] long-polling
+- [x] webhook
 - [ ] test code
 - [ ] ci
 - [ ] load experience
+- [ ] document
