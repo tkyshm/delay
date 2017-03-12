@@ -223,6 +223,7 @@ post_webhook(Url, Data) ->
         {ok, Status, _, ClientRef} when Status >= 400-> % error
             io:format("status:~p", [Status]),
             Body = parse_body(ClientRef),
+            io:format("body:~p", [Body]),
             error_logger:error_report("error post request to webhook",[{code, Status}, {body, Body}]),
             {error, Status};
         {ok, Status, _, _} ->
@@ -247,7 +248,7 @@ parse_body(ClientRef) ->
 
 -spec encode_to_binary(Data :: #{}) -> binary().
 encode_to_binary(Data) ->
-    try jiffy:encoded(Data) of
+    try jiffy:encode(Data) of
         Bin -> Bin
     catch
         _TypeError:_Err ->

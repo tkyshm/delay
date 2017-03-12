@@ -13,6 +13,8 @@
 %% Supervisor callbacks
 -export([init/1]).
 
+-include("delay.hrl").
+
 -define(SERVER, ?MODULE).
 
 %%====================================================================

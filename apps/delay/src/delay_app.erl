@@ -13,8 +13,6 @@
 -include("delay.hrl").
 -include("schema.hrl").
 
--define(DEFAULT_PORT, 9020).
-
 %%====================================================================
 %% API
 %%====================================================================
@@ -23,14 +21,14 @@ start(_StartType, _StartArgs) ->
     start_profile(),
 
     %% init mnesia (TODO: escripts)
-    case create_job_table(128) of
+    case create_job_table(6) of
         {aborted, Reason1} ->
             error_logger:error_msg("failed to create tables: reason=~p", [Reason1]);
         _ ->
             ok
     end,
 
-    case create_acceptor_table(128) of
+    case create_acceptor_table(6) of
         {aborted, Reason2} ->
             error_logger:error_msg("failed to create tables: reason=~p", [Reason2]);
         _ ->
@@ -43,15 +41,15 @@ start(_StartType, _StartArgs) ->
 
     case application:get_env(port) of
         {ok, Port} -> start_api_server(Port);
-        _ -> start_api_server(?DEFAULT_PORT)
+        _          -> start_api_server(?DEFAULT_PORT)
     end,
     delay_sup:start_link().
 
 profile_output() ->
     eprof:stop_profiling(),
-    eprof:log("epms_procs.profile"),
+    eprof:log("delay_procs.profile"),
     eprof:analyze(procs),
-    eprof:log("epms_total.profile"),
+    eprof:log("delay_total.profile"),
     eprof:analyze(total).
 
 %%--------------------------------------------------------------------
@@ -86,11 +84,14 @@ start_api_server(Port) ->
 %% TODO: for replications
 -spec create_job_table(non_neg_integer()) -> {aborted, Reason::term()} | {ok, already_exists} | {ok, created}.
 create_job_table(Frag) ->
-    case mnesia:create_table(job, [{type, set}, {frag_properties,
-                                                   [{node_pool, [node()]},
-                                                    {n_fragments, Frag}
-                                                   ]},
-                                     {attributes, record_info(fields, job)}]) of
+    TabDef = [{type, set},
+              {disc_copies, [node()]},
+              {frag_properties,
+               [{node_pool, [node()]},
+                {n_fragments, Frag}
+               ]},
+              {attributes, record_info(fields, job)}],
+    case mnesia:create_table(job, TabDef) of
         {aborted, {already_exists, job}} ->
             {ok, already_exists};
         {aborted, Reason} ->
@@ -101,11 +102,14 @@ create_job_table(Frag) ->
 
 -spec create_acceptor_table(non_neg_integer()) -> {aborted, Reason::term()} | {ok, already_exists} | {ok, created}.
 create_acceptor_table(Frag) ->
-    case mnesia:create_table(acceptor, [{type, set}, {frag_properties,
-                                                   [{node_pool, [node()]},
-                                                    {n_fragments, Frag}
-                                                   ]},
-                                     {attributes, record_info(fields, acceptor)}]) of
+    TabDef = [{type, set},
+              {disc_copies, [node()]},
+              {frag_properties,
+               [{node_pool, [node()]},
+                {n_fragments, Frag}
+               ]},
+              {attributes, record_info(fields, acceptor)}],
+    case mnesia:create_table(acceptor, TabDef) of
         {aborted, {already_exists, acceptor}} ->
             {ok, already_exists};
         {aborted, Reason} ->

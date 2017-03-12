@@ -2,5 +2,7 @@
 
 -setcookie delay_cookie
 
+-mnesia dir mnesia/db
+
 +K true
 +A30
