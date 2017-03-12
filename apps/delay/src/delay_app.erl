@@ -77,9 +77,11 @@ start_api_server(Port) ->
             { "/api/dequeue", dequeue_handler, [] }
         ]}
     ]),
-    {ok, _} = cowboy:start_clear(delay_httpd, 100, [{port, Port}], #{
-        env => #{dispatch => Dispatch}
-    }).
+    Opts = #{
+      env             => #{dispatch => Dispatch},
+      request_timeout => ?MAX_POLLING_TIMEOUT * 1000
+     },
+    {ok, _} = cowboy:start_clear(delay_httpd, 100, [{port, Port}], Opts).
 
 %% TODO: for replications
 -spec create_job_table(non_neg_integer()) -> {aborted, Reason::term()} | {ok, already_exists} | {ok, created}.
