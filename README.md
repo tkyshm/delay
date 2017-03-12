@@ -39,6 +39,7 @@ data       | user job's parameters. (optional)
 
 - Support long-polling
 - Request headers:
+
 header          | value
 --------------- | --------------------------------------
 X-Delay-Timeout | Long-polling timeout (seconds).
