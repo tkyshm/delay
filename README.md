@@ -1,7 +1,9 @@
+[![Build Status](https://travis-ci.org/tkyshm/delay.svg?branch=master)](https://travis-ci.org/tkyshm/delay)
+
 delay
 =====
 
-An OTP application
+Simple delay job Application
 
 Build
 -----
@@ -36,8 +38,12 @@ data       | user job's parameters. (optional)
 ### GET /api/dequeue
 
 - Support long-polling
+- Request headers:
+header          | value
+--------------- | --------------------------------------
+X-Delay-Timeout | Long-polling timeout (seconds).
 
-Response:
+- Response:
 ```json
 [
   {
@@ -66,6 +72,7 @@ Response:
 - [x] long-polling
 - [x] webhook
 - [x] test code
-- [ ] ci
+- [x] ci
 - [ ] load experience
 - [ ] document
+- [ ] cleans commit
