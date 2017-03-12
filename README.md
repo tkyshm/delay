@@ -74,6 +74,6 @@ X-Delay-Timeout | Long-polling timeout (seconds).
 - [x] webhook
 - [x] test code
 - [x] ci
-- [ ] load experience
+- [ ] load test
 - [ ] document
 - [ ] cleans commit
