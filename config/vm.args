@@ -4,5 +4,7 @@
 
 -mnesia dir '"/mnesia"'
 
+-start_epmd false
+
 +K true
 +A30
