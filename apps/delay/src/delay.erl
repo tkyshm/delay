@@ -3,7 +3,8 @@
 -export([send_acceptor/1,
          create_job_table/1,
          create_acceptor_table/1,
-         create_schema/0
+         create_schema/0,
+         add_replication/0
         ]).
 
 -include("delay.hrl").
@@ -49,6 +50,12 @@ create_job_table(Frag) ->
         _ ->
             {ok, created}
     end.
+
+add_replication() ->
+    mnesia:change_config(extra_db_nodes, nodes()),
+    mnesia:add_table_copy(job, node(), disc_copies),
+    mnesia:add_table_copy(acceptor, node(), disc_copies),
+    ok.
 
 -spec create_acceptor_table(non_neg_integer()) -> {aborted, Reason::term()} | {ok, already_exists} | {ok, created}.
 create_acceptor_table(Frag) ->
