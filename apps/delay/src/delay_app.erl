@@ -21,19 +21,19 @@ start(_StartType, _StartArgs) ->
     start_profile(),
 
     %% init mnesia (TODO: escripts)
-    case create_job_table(6) of
-        {aborted, Reason1} ->
-            error_logger:error_msg("failed to create tables: reason=~p", [Reason1]);
-        _ ->
-            ok
-    end,
+    %%case create_job_table(6) of
+    %%    {aborted, Reason1} ->
+    %%        error_logger:error_msg("failed to create tables: reason=~p", [Reason1]);
+    %%    _ ->
+    %%        ok
+    %%end,
 
-    case create_acceptor_table(6) of
-        {aborted, Reason2} ->
-            error_logger:error_msg("failed to create tables: reason=~p", [Reason2]);
-        _ ->
-            ok
-    end,
+    %%case create_acceptor_table(6) of
+    %%    {aborted, Reason2} ->
+    %%        error_logger:error_msg("failed to create tables: reason=~p", [Reason2]);
+    %%    _ ->
+    %%        ok
+    %%end,
 
     %% initialize hackney pool for webhook
     Options = [{timeout, ?WEBHOOK_TIMEOUT}, {max_connections, ?WEBHOOK_MAX_CONNECTIONS}],
